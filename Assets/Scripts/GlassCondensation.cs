@@ -1,9 +1,17 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 
+public class CachedPoint
+{
+	public float alpha;
+	public bool isAffected = false;
+}
+
 public class GlassCondensation : MonoBehaviour {
+
+	List<List<float>> cachedTextureAlpha = new List<List<float>>();
 
 	static readonly Color WhiteClear = new Color(1f, 1f, 1f, 0f);
 
@@ -47,18 +55,33 @@ public class GlassCondensation : MonoBehaviour {
 			{
 				_maskTexture = new Texture2D(sizeMaskTexture, sizeMaskTexture, TextureFormat.Alpha8, false);
 				spriteRenderer.material.SetTexture("_Mask", _maskTexture);
-//				Color c = new Color(1f, 1f, 1f, fullAlpha);
-//				for (int i = 0 ; i < maskTexture.width ; i++)
-//				{
-//					for (int j = 0 ; j < maskTexture.height ; j++)
-//					{
-//						maskTexture.SetPixel(i, j, c);
-//					}
-//				}
-//				_maskTexture = (Texture2D)spriteRenderer.material.GetTexture("_Mask");
+				Color c = new Color(1f, 1f, 1f, fullAlpha);
+				for (int i = 0 ; i < maskTexture.width ; i++)
+				{
+					cachedTextureAlpha.Add(new List<float>());
+					for (int j = 0 ; j < maskTexture.height ; j++)
+					{
+						maskTexture.SetPixel(i, j, c);
+						cachedTextureAlpha[i].Add(fullAlpha);
+					}
+				}
+				_maskTexture = (Texture2D)spriteRenderer.material.GetTexture("_Mask");
 			}
 			return _maskTexture;
 		}
+	}
+
+	void SetPixel(int x, int y, float a)
+	{
+		Color c = Color.white;
+		c.a = a;
+		maskTexture.SetPixel(x, y, c);
+		cachedTextureAlpha[x][y] = a;
+	}
+
+	float GetPixel(int x, int y)
+	{
+		return cachedTextureAlpha[x][y];
 	}
 
 	SpriteRenderer _spriteRenderer;
@@ -167,16 +190,16 @@ public class GlassCondensation : MonoBehaviour {
 				float SqrDistToCenter = difX * difX + difY * difY;
 				if (SqrDistToCenter < pixelRadiusX * pixelRadiusY)
 				{
-					Color c = maskTexture.GetPixel(i, j);
+					float a = GetPixel(i, j);
 					float normalizedDistToCenter = Mathf.Sqrt( SqrDistToCenter) / pixelRadiusX;
 					float normalizedDistToEdge = Mathf.InverseLerp(fullClearEdge, fullAlpha, normalizedDistToCenter);
 					float power = Mathf.Lerp(fullClearPower, 0f, normalizedDistToEdge);
 					float min = Mathf.Lerp(fullAlpha - fullClearPower, fullAlpha, normalizedDistToEdge);
-					float newAlpha = Mathf.Max(min, c.a - power);
-					if (c.a > newAlpha)
+					float newAlpha = Mathf.Max(min, a - power);
+					if (a > newAlpha)
 					{
-						c.a = newAlpha;
-						maskTexture.SetPixel(i, j, c);
+						a = newAlpha;
+						SetPixel(i, j, a);
 					}
 				}
 			}
@@ -190,10 +213,10 @@ public class GlassCondensation : MonoBehaviour {
 		{
 			for (int j = 0 ; j < maskTexture.height ; j++)
 			{
-				Color c = maskTexture.GetPixel(i, j);
-				c.a = fullAlpha - fullClearPower;
-				maskTexture.SetPixel(i, j, c);
-				averageAlpha += c.a;
+				float a = GetPixel(i, j);
+				a = fullAlpha - fullClearPower;
+				SetPixel(i, j, a);
+				averageAlpha += a;
 			}
 		}
 		averageAlpha = averageAlpha / (float) (maskTexture.width * maskTexture.height);
@@ -210,14 +233,14 @@ public class GlassCondensation : MonoBehaviour {
 			{
 				for (int j = 0 ; j < maskTexture.height ; j++)
 				{
-					Color c = maskTexture.GetPixel(i, j);
-					averageAlpha += c.a;
-					if (c.a < fullAlpha)
+					float a = GetPixel(i, j);
+					averageAlpha += a;
+					if (a < fullAlpha)
 					{
-						c.a += recoverPower;
-						if (c.a > fullAlpha)
-							c.a = fullAlpha;
-						maskTexture.SetPixel(i, j, c);
+						a += recoverPower;
+						if (a > fullAlpha)
+							a = fullAlpha;
+						SetPixel(i, j, a);
 					}
 				}
 			}
